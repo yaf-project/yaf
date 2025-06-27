@@ -1,0 +1,14 @@
+# The startup script referenced in ExecStart below loads settings from
+# @sysconfdir@/yaf.conf
+#
+[Unit]
+Description=Yet Another Flowmeter
+Documentation=man:yaf(1)
+
+[Service]
+Type=simple
+ExecStart=@prefix@/libexec/yaf/yaf_startup
+ExecStop=/bin/kill -s SIGHUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

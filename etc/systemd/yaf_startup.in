@@ -1,0 +1,197 @@
+#!/bin/sh
+
+##  Copyright 2007-2025 Carnegie Mellon University
+##  See license information in LICENSE.txt.
+##
+##  @configure_input@
+
+# yaf start/control script
+#
+# Uses airdaemon and yaf to run YAF for live collection, robust to remote
+# collector failure. Not suitable for running YAF on pcap files, or for
+# running YAF for live capture and writing to rotated IPFIX files.
+#
+# chkconfig: - 19 96
+# description:  Control yaf as a live capture daemon
+#
+
+##  ----------------------------------------------------------------------
+##  Authors: Brian Trammell
+##  ----------------------------------------------------------------------
+##  @DISTRIBUTION_STATEMENT_BEGIN@
+##  YAF 2.16
+##
+##  Copyright 2024 Carnegie Mellon University.
+##
+##  NO WARRANTY. THIS CARNEGIE MELLON UNIVERSITY AND SOFTWARE ENGINEERING
+##  INSTITUTE MATERIAL IS FURNISHED ON AN "AS-IS" BASIS. CARNEGIE MELLON
+##  UNIVERSITY MAKES NO WARRANTIES OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
+##  AS TO ANY MATTER INCLUDING, BUT NOT LIMITED TO, WARRANTY OF FITNESS FOR
+##  PURPOSE OR MERCHANTABILITY, EXCLUSIVITY, OR RESULTS OBTAINED FROM USE OF
+##  THE MATERIAL. CARNEGIE MELLON UNIVERSITY DOES NOT MAKE ANY WARRANTY OF
+##  ANY KIND WITH RESPECT TO FREEDOM FROM PATENT, TRADEMARK, OR COPYRIGHT
+##  INFRINGEMENT.
+##
+##  Licensed under a GNU GPL 2.0-style license, please see LICENSE.txt or
+##  contact permission@sei.cmu.edu for full terms.
+##
+##  [DISTRIBUTION STATEMENT A] This material has been approved for public
+##  release and unlimited distribution.  Please see Copyright notice for
+##  non-US Government use and distribution.
+##
+##  This Software includes and/or makes use of Third-Party Software each
+##  subject to its own license.
+##
+##  DM24-1063
+##  @DISTRIBUTION_STATEMENT_END@
+##  ----------------------------------------------------------------------
+
+RETVAL=0
+
+MYNAME="yaf"
+
+# autoconf stuff
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+# yaf.conf must be located in the SCRIPT_CONFIG_LOCATION directory to work.
+# Edit this line or set the SCRIPT_CONFIG_LOCATION environment variable if
+# yaf.conf is not located in the default location.
+if [ "x$SCRIPT_CONFIG_LOCATION" = "x" ] ; then
+    SCRIPT_CONFIG_LOCATION=@sysconfdir@
+fi
+
+if [ "x$YAF_STATEDIR" = "x" ] ; then
+    YAF_STATEDIR=/var
+fi
+
+# Determine whether our name has an addendum
+BASENAME='s:\(.*/\)*\([^/]*\)$:\2:'
+SEDEXT1='s/\(.*\)\.init\.d$/\1/'
+SEDEXT2='s/\(.*\)\.sh$/\1/'
+SCRIPTNAME=`echo $0 | sed ${BASENAME} | sed ${SEDEXT1} | sed ${SEDEXT2}`
+PRETEST="\\(${MYNAME}\\)\\(-.*\\)*\$"
+SUFTEST="${MYNAME}\\(-.*\\)\$"
+PREFIX=`expr "x${SCRIPTNAME}" : "x${PRETEST}"`
+SUFFIX=`expr "x${SCRIPTNAME}" : "x${SUFTEST}"`
+
+if [ "x$PREFIX" != "x$MYNAME" ] ; then
+    SUFFIX=
+fi
+
+if [ -n "$1" ] ; then
+    SCRIPT_CONFIG=${SCRIPT_CONFIG_LOCATION}/${MYNAME}${SUFFIX}.$1.conf
+else
+    SCRIPT_CONFIG=${SCRIPT_CONFIG_LOCATION}/${MYNAME}${SUFFIX}.conf
+fi
+
+# set the loadable library path to pick up both default plugin
+# libraries and the application labeler libraries
+if [ -d $prefix/lib/yaf ] ; then
+    export LTDL_LIBRARY_PATH=$prefix/lib/yaf:$LTDL_LIBRARY_PATH
+elif [ -d $prefix/lib64/yaf ]  ; then
+    export LTDL_LIBRARY_PATH=$prefix/lib64/yaf:$LTDL_LIBRARY_PATH
+fi
+
+
+############################################################################
+
+#
+# This script requires the following configuration variables from the
+# yaf.conf file:
+#
+# ENABLED           must be non-empty to start YAF
+# YAF_USER          user to become after opening capture device (optional)
+# YAF_CAP_TYPE      capture driver (pcap or dag)
+# YAF_CAP_IF        capture interface name
+# YAF_IPFIX_PROTO   collector transport protocol
+# YAF_IPFIX_HOST    collector hostname
+# YAF_IPFIX_PORT    collector port (optional; default 4739)
+# YAF_LOG           log file or syslog facility name (optional)
+# YAF_EXTRAFLAGS    Additional YAF command-line flags (optional)
+# YAF_ROTATE_LOCATION location to write rotating IPFIX files (optional)
+# YAF_ROTATE_TIME   seconds interval to rotate files
+
+# grab configuration and check enabled state
+
+if [ ! -f "${SCRIPT_CONFIG}" ] ; then
+    echo "$0: ${SCRIPT_CONFIG} does not exist."
+    exit 0
+fi
+
+. "${SCRIPT_CONFIG}"
+
+if [ "x$ENABLED" = "x" ] ; then
+    exit 0
+fi
+
+# verify we have a runnable YAF and airdaemon
+
+check_executable()
+{
+    if [ ! -x $1 ] ; then
+        echo "$0: $1 is not executable or not found."
+        exit 1
+    fi
+}
+
+YAFBIN=@bindir@/yaf
+
+check_executable ${YAFBIN}
+
+# verify we have a good configuration
+
+check_varempty()
+{
+    if [ "x$2" = "x" ] ; then
+        echo "$0: the $1 parameter in ${SCRIPT_CONFIG} is not set."
+        exit 1
+    fi
+}
+
+check_varempty  "YAF_CAP_TYPE"      ${YAF_CAP_TYPE}
+check_varempty  "YAF_CAP_IF"        ${YAF_CAP_IF}
+#check_varempty  "YAF_IPFIX_PROTO"   ${YAF_IPFIX_PROTO}
+#check_varempty  "YAF_IPFIX_HOST"    ${YAF_IPFIX_HOST}
+
+if [ "x$YAF_USER" != "x" ]; then
+    YAFARGS="$YAFARGS --become-user $YAF_USER"
+fi
+
+YAFARGS="$YAFARGS --live $YAF_CAP_TYPE --in $YAF_CAP_IF"
+
+if [ "x$YAF_IPFIX_PROTO" != "x" ]; then
+    check_varempty  "YAF_IPFIX_HOST"    ${YAF_IPFIX_HOST}
+    YAFARGS="$YAFARGS --ipfix $YAF_IPFIX_PROTO --out $YAF_IPFIX_HOST"
+    if [ "x$YAF_IPFIX_PORT" != "x" ]; then
+        YAFARGS="$YAFARGS --ipfix-port $YAF_IPFIX_PORT"
+    fi
+elif [ "x$YAF_ROTATE_LOCATION" != "x" ]; then
+
+    YAFARGS="$YAFARGS --out $YAF_ROTATE_LOCATION --lock"
+
+    if [ "x$YAF_ROTATE_TIME" != "x" ]; then
+        YAFARGS="$YAFARGS --rotate $YAF_ROTATE_TIME"
+    else
+        YAFARGS="$YAFARGS --rotate 120"
+    fi
+else
+    check_varempty  "YAF_IPFIX_PROTO"   ${YAF_IPFIX_PROTO}
+    check_varempty  "YAF_IPFIX_HOST"    ${YAF_IPFIX_HOST}
+fi
+
+
+if [ "x$YAF_LOG" = "x" ]; then
+      if [ -d $YAF_STATEDIR/log ] ; then
+         YAF_LOG="$YAF_STATEDIR/log/yaf.log"
+      else
+         echo "$0: the $YAF_STATEDIR/log directory does not exist."
+         exit 1
+      fi
+fi
+
+YAFARGS="$YAFARGS --log $YAF_LOG --verbose"
+
+YAFARGS="$YAFARGS $YAF_EXTRAFLAGS"
+
+exec $YAFBIN $YAFARGS
