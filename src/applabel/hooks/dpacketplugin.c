@@ -6255,7 +6255,7 @@ ypSslStoreExtension(
 
     offset += 2;
 
-    while (total_ext + 4 < total_count) {
+    while (total_ext + 4 <= total_count) {
         ext_type = ntohs(*(uint16_t *)(payload + offset));
         offset += 2;
         ext_len = ntohs(*(uint16_t *)(payload + offset));

@@ -1,3 +1,13 @@
+Version 2.16.4: 2025-07-01
+==========================
+
+Fixed an issue that could cause the JA3 values to be incorrect.
+
+Version 2.15.3: 2025-07-01
+==========================
+
+Fixed an issue that could cause the JA3 values to be incorrect.
+
 Version 2.16.3: 2025-06-26
 ==========================
 

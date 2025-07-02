@@ -85,7 +85,7 @@
 %endif
 
 %define name    yaf
-%define version 2.16.3
+%define version 2.16.4
 %define release 1%{!?with_applabel:_noApplabel}%{!?with_plugins:_noPlugins}%{?with_entropy:_entropy}%{?with_fpexporter:_fpexporter}%{?with_napatech:_napatech}%{?with_ndpi:_ndpi}%{?with_p0f:_p0f}%{?with_pfring:_pfring}%{?dist}
 
 Summary:        Yet Another Flow sensor

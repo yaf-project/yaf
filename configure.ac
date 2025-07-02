@@ -37,7 +37,7 @@ dnl @DISTRIBUTION_STATEMENT_END@
 dnl ------------------------------------------------------------------------
 
 AC_PREREQ([2.64])
-AC_INIT([yaf],[2.16.3],[netsa-help@cert.org],[yaf],[https://tools.netsa.certo.org/yaf2/])
+AC_INIT([yaf],[2.16.4],[netsa-help@cert.org],[yaf],[https://tools.netsa.certo.org/yaf2/])
 AC_COPYRIGHT([Copyright (C) 2006-2025 Carnegie Mellon University
 GNU General Public License (GPL) Rights pursuant to Version 2, June 1991])
 AC_CONFIG_SRCDIR([src/yaf.c])
